@@ -1,17 +1,177 @@
-# Azure Latency MCP Server
+# Azure Region Advisor
 
-An MCP (Model Context Protocol) server for testing Azure region latency. This server enables AI assistants like Claude Desktop and GitHub Copilot to measure network latency to Azure regions by pinging blob storage endpoints.
+An AI-powered toolkit for making informed Azure region selection decisions by combining **network latency testing** and **pricing analysis**. Designed to work with GitHub Copilot (with Claude) and Claude Desktop through MCP (Model Context Protocol) and Claude Skills.
+
+## Overview
+
+Choosing the right Azure region involves balancing two key factors:
+
+| Factor | Tool | Purpose |
+|--------|------|---------|
+| **Latency** | MCP Server | Measures actual TCP connection latency from your location to Azure regions |
+| **Cost** | Claude Skill | Queries Azure Retail Prices API for VM pricing across regions |
+
+When used together with an AI assistant, these tools provide comprehensive region recommendations that consider both performance and cost implications.
+
+![Example Output](docs/example-output.png)
 
 ## Features
 
-- **Test latency to any Azure region** - Measures TCP connection latency to Azure blob storage endpoints
-- **Dynamic infrastructure** - Creates temporary storage accounts for regions without existing public endpoints, then cleans up
-- **Parallel execution** - Tests multiple regions simultaneously for speed
-- **Graceful cancellation** - Supports cancellation with proper cleanup of temporary resources
-- **Queued execution** - Only one latency test runs at a time to avoid resource conflicts
-- **Detailed logging** - Comprehensive log file with timestamps and phase information
+### 🌐 Latency Testing (MCP Server)
+- Tests TCP connection latency to Azure blob storage endpoints
+- Creates temporary storage accounts for regions without public endpoints
+- Parallel execution for speed
+- Automatic cleanup of temporary resources
+- Supports cancellation with graceful resource cleanup
 
-## Tools
+### 💰 Pricing Analysis (Claude Skill)
+- Queries Azure Retail Prices API for any VM SKU
+- Compares pricing across all Azure regions
+- Shows consumption, spot, and reserved instance pricing
+- Calculates annual costs and potential savings
+- Supports multiple currencies (USD, EUR, GBP, TRY, etc.)
+
+## Installation
+
+### Prerequisites
+
+- **Python 3.10+**
+- **Azure CLI** - For authentication
+- **VS Code with GitHub Copilot** - For the integrated experience
+- **uv** (recommended) or pip - For package management
+
+### Quick Start
+
+```bash
+# Clone the repository
+git clone https://github.com/yourusername/azure-region-advisor.git
+cd azure-region-advisor
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Or install as a package with uv (recommended)
+uv pip install -e .
+
+# Authenticate with Azure
+az login
+```
+
+### Verify Installation
+
+```bash
+# Test the pricing skill
+python .claude/skills/azure-pricing/scripts/query_vm_pricing.py --sku Standard_D8as_v6
+
+# Test the MCP server
+python -m azure_latency_mcp.server
+```
+
+## Configuration
+
+### VS Code + GitHub Copilot
+
+The repository includes pre-configured VS Code settings. After cloning:
+
+1. Open the repository folder in VS Code
+2. The MCP server configuration is in `.vscode/mcp.json`
+3. Copilot instructions are in `.github/copilot-instructions.md`
+4. The Claude skill is automatically available in `.claude/skills/azure-pricing/`
+
+**MCP Server Configuration** (`.vscode/mcp.json`):
+```json
+{
+  "servers": {
+    "azure-latency": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "azure_latency_mcp.server"]
+    }
+  }
+}
+```
+
+### Claude Desktop
+
+Add to your Claude Desktop configuration:
+
+**Linux/Mac:** `~/.config/claude/claude_desktop_config.json`  
+**Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "azure-latency": {
+      "command": "uv",
+      "args": ["run", "--with", "azure-latency-mcp", "azure-latency-mcp"]
+    }
+  }
+}
+```
+
+## Usage
+
+### Recommended: AI-Assisted Region Selection
+
+Ask your AI assistant questions like:
+
+> "Help me choose an Azure region for deploying a Standard_D8as_v6 VM. I need good latency from Turkey and want to optimize costs."
+
+The assistant will:
+1. Discuss your requirements and confirm the VM SKU
+2. Run latency tests to candidate regions using the MCP server
+3. Query pricing data using the Claude skill
+4. Combine results into a comprehensive recommendation
+
+### Example Conversation
+
+**You:** I need to deploy an 8-core VM with 32GB RAM for a web application serving users in Turkey. Help me choose the best region.
+
+**Assistant:** For your requirements, I recommend the Standard_D8as_v6 SKU (AMD-based, 8 vCPU, 32GB RAM). Let me analyze the best regions...
+
+*[Runs latency tests and pricing queries]*
+
+**Output:**
+
+| Bölge | Linux/Saat | Yıllık Maliyet | Latency |
+|-------|------------|----------------|---------|
+| uksouth 🏆 | $0.0506 | ~$443/yıl | 52.4 ms |
+| swedencentral | $0.0717 | ~$628/yıl | 57.4 ms |
+| germanywestcentral | $0.0811 | ~$710/yıl | 39.6 ms ⚡ |
+| polandcentral | $0.0813 | ~$712/yıl | 45.2 ms |
+
+**🎯 Recommendations:**
+- **Option 1: Lowest Cost** - UK South ($1,918/yr total)
+- **Option 2: Lowest Latency** - Germany West Central (39.6ms)
+- **Option 3: Balanced** - Poland Central (good price/performance)
+
+### Direct Tool Usage
+
+#### Query VM Pricing
+
+```bash
+# Basic pricing query
+python .claude/skills/azure-pricing/scripts/query_vm_pricing.py --sku Standard_D8as_v6
+
+# With specific currency
+python .claude/skills/azure-pricing/scripts/query_vm_pricing.py --sku Standard_D48as_v6 --currency EUR
+
+# Filter to specific regions
+python .claude/skills/azure-pricing/scripts/query_vm_pricing.py --sku Standard_D8as_v6 \
+  --regions westeurope,northeurope,uksouth,germanywestcentral
+```
+
+#### Test Latency via MCP
+
+Ask your AI assistant:
+> "Test latency to westeurope, northeurope, uksouth, germanywestcentral, and polandcentral"
+
+Or use the MCP Inspector:
+```bash
+npx @modelcontextprotocol/inspector python -m azure_latency_mcp.server
+```
+
+## MCP Tools Reference
 
 ### `azure_list_subscriptions`
 
@@ -33,11 +193,9 @@ Lists all available Azure subscriptions accessible with current credentials.
 
 Tests network latency to specified Azure regions.
 
-**Parameters:**
-
-| Name | Type | Required | Default | Description |
-|------|------|----------|---------|-------------|
-| `regions` | `list[str]` | Yes | - | Azure region names to test (e.g., `["westeurope", "eastus"]`) |
+| Parameter | Type | Required | Default | Description |
+|-----------|------|----------|---------|-------------|
+| `regions` | `list[str]` | Yes | - | Azure region names (e.g., `["westeurope", "eastus"]`) |
 | `request_count` | `int` | No | `10` | TCP connection attempts per region (3-20) |
 | `subscription_id` | `str` | No | First available | Azure subscription ID to use |
 | `log_file` | `str` | No | `./azure-latency-test.log` | Path to log file |
@@ -46,231 +204,172 @@ Tests network latency to specified Azure regions.
 ```json
 {
   "success": true,
-  "best_region": "westeurope",
-  "best_latency_ms": 42.5,
-  "results": [
-    {
-      "region": "westeurope",
-      "endpoint": "westeurope.blob.core.windows.net",
-      "min_ms": 38.2,
-      "max_ms": 52.1,
-      "avg_ms": 42.5,
-      "failed": 0
-    }
-  ],
-  "regions_tested": 1,
-  "resource_group": "latency-test-mcp-20250119143052",
-  "subscription_id": "xxxx-xxxx-xxxx",
-  "created_accounts": [],
-  "deleted_accounts": [],
-  "failed_deletions": [],
-  "warnings": [],
-  "cleanup_required": null,
-  "duration_seconds": 15.3,
-  "log_file": "./azure-latency-test.log",
-  "cancelled": false
-}
-```
-
-## Installation
-
-### Prerequisites
-
-1. **Python 3.10+** - Required for the MCP server
-2. **Azure CLI** - For authentication (`az login`)
-3. **uv** (recommended) or pip - For package management
-
-### Install with uv (Recommended)
-
-```bash
-# Clone or download the repository
-cd azure-latency-mcp
-
-# Install with uv
-uv pip install -e .
-```
-
-### Install with pip
-
-```bash
-cd azure-latency-mcp
-pip install -e .
-```
-
-### Azure Authentication
-
-The server uses `DefaultAzureCredential` which supports multiple authentication methods:
-
-1. **Azure CLI** (recommended for local development):
-   ```bash
-   az login
-   ```
-
-2. **Environment variables**:
-   ```bash
-   export AZURE_CLIENT_ID="your-client-id"
-   export AZURE_TENANT_ID="your-tenant-id"
-   export AZURE_CLIENT_SECRET="your-client-secret"
-   ```
-
-3. **Managed Identity** (when running in Azure)
-
-## Configuration
-
-### Claude Desktop
-
-Add to your Claude Desktop configuration (`~/.config/claude/claude_desktop_config.json` on Linux/Mac or `%APPDATA%\Claude\claude_desktop_config.json` on Windows):
-
-```json
-{
-  "mcpServers": {
-    "azure-latency": {
-      "command": "uv",
-      "args": ["run", "--with", "azure-latency-mcp", "azure-latency-mcp"]
-    }
+  "latency_results": {
+    "best_region": "germanywestcentral",
+    "best_latency_ms": 39.6,
+    "regions_tested": 5,
+    "results": [
+      {"region": "germanywestcentral", "avg_ms": 39.6, "min_ms": 38.2, "max_ms": 42.1},
+      {"region": "polandcentral", "avg_ms": 45.2, "min_ms": 43.1, "max_ms": 48.3}
+    ]
+  },
+  "infrastructure": {
+    "status": "All resources cleaned up successfully",
+    "created_accounts": [],
+    "deleted_accounts": []
   }
 }
 ```
 
-Or if installed globally:
+## Claude Skill Reference
 
-```json
-{
-  "mcpServers": {
-    "azure-latency": {
-      "command": "azure-latency-mcp"
-    }
-  }
-}
+### Azure Pricing Skill
+
+**Location:** `.claude/skills/azure-pricing/`
+
+**Purpose:** Query Azure retail prices for VM SKUs across all regions.
+
+**Script:** `scripts/query_vm_pricing.py`
+
+| Option | Description |
+|--------|-------------|
+| `--sku` | VM SKU name (required, e.g., `Standard_D8as_v6`) |
+| `--currency` | Currency code (default: USD) |
+| `--regions` | Comma-separated list of regions (optional) |
+
+**Output Sections:**
+1. **Summary Table** - All regions sorted by Linux hourly price
+2. **Cost Analysis** - Cheapest vs most expensive with annual savings
+
+**Supported Price Types:**
+- Linux consumption (pay-as-you-go)
+- Windows consumption
+- Windows with Azure Hybrid Benefit (same as Linux)
+- Spot instances
+- 1-year reserved instances
+- 3-year reserved instances
+
+## Project Structure
+
 ```
-
-### GitHub Copilot
-
-Add to your VS Code settings or Copilot configuration:
-
-```json
-{
-  "github.copilot.chat.mcpServers": {
-    "azure-latency": {
-      "command": "azure-latency-mcp"
-    }
-  }
-}
+azure-region-advisor/
+├── .claude/
+│   └── skills/
+│       └── azure-pricing/              # Claude skill for pricing
+│           ├── SKILL.md                # Skill instructions
+│           ├── scripts/
+│           │   └── query_vm_pricing.py # Pricing query script
+│           └── references/
+│               └── service-mapping.md  # Service name mappings
+├── .github/
+│   └── copilot-instructions.md         # GitHub Copilot instructions
+├── .vscode/
+│   ├── mcp.json                        # MCP server configuration
+│   └── settings.json                   # VS Code settings
+├── src/
+│   └── azure_latency_mcp/              # MCP server package
+│       ├── __init__.py
+│       ├── server.py                   # MCP server and tools
+│       ├── latency_tester.py           # Core latency testing
+│       └── models.py                   # Data models
+├── pyproject.toml                      # Package configuration
+├── requirements.txt                    # Python dependencies
+├── LICENSE                             # MIT License
+└── README.md                           # This file
 ```
-
-### Running Manually
-
-For testing or development:
-
-```bash
-# Run with uv
-uv run azure-latency-mcp
-
-# Or if installed
-azure-latency-mcp
-```
-
-### Using MCP Inspector
-
-Test the server interactively:
-
-```bash
-npx @modelcontextprotocol/inspector azure-latency-mcp
-```
-
-## Usage Examples
-
-### List Available Subscriptions
-
-Ask Claude or Copilot:
-> "List my Azure subscriptions"
-
-### Test European Regions
-
-> "Test latency to Azure regions in Europe: westeurope, northeurope, uksouth, francecentral, germanywestcentral"
-
-### Find Best Region for a Workload
-
-> "I need to deploy a service that serves users in the Middle East. Test latency to uaenorth, qatarcentral, and israelcentral to find the best region."
-
-### Quick Test with Fewer Pings
-
-> "Do a quick latency test (3 pings) to westeurope and eastus"
 
 ## How It Works
 
-1. **DNS Check** - For each region, checks if `{region}.blob.core.windows.net` resolves
-2. **Storage Account Creation** - For regions without existing endpoints, creates temporary storage accounts
-3. **Latency Testing** - Opens TCP connections to port 443 and measures connection time
-4. **Cleanup** - Deletes all temporary storage accounts and resource groups
+### Latency Testing Flow
 
-### Resource Naming
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Phase 1: DNS   │────▶│ Phase 2: Create │────▶│ Phase 3: Test   │
+│  Resolution     │     │ Storage Accounts│     │ TCP Latency     │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                                         │
+                                                         ▼
+                                               ┌─────────────────┐
+                                               │ Phase 4: Cleanup│
+                                               │ Resources       │
+                                               └─────────────────┘
+```
 
-- Resource groups: `latency-test-mcp-{yyyyMMddHHmmss}`
-- Storage accounts: `lat{random16chars}`
+1. **DNS Check** - Checks if `{region}.blob.core.windows.net` resolves
+2. **Storage Creation** - Creates temporary accounts for unresolved regions
+3. **Latency Test** - TCP connections to port 443, measures connection time
+4. **Cleanup** - Deletes temporary storage accounts and resource groups
 
-All resources are automatically cleaned up after testing. If cleanup fails, the response includes `cleanup_required` with details.
+### Pricing Query Flow
+
+1. **Parse SKU** - Normalizes name (e.g., `D8as_v6` → `Standard_D8as_v6`)
+2. **API Query** - Fetches from Azure Retail Prices API with pagination
+3. **Organize** - Groups by region and price type
+4. **Output** - Summary table + cost analysis
+
+## Regional Recommendations by Location
+
+### Users in Turkey / Middle East
+```
+germanywestcentral, polandcentral, swedencentral, 
+northeurope, westeurope, uksouth, francecentral, italynorth
+```
+
+### Users in Western Europe
+```
+westeurope, northeurope, uksouth, francecentral, 
+germanywestcentral, swedencentral
+```
+
+### Users in North America
+```
+eastus, eastus2, centralus, westus2, westus3, canadacentral
+```
+
+### Users in Asia Pacific
+```
+southeastasia, eastasia, japaneast, australiaeast, koreacentral
+```
 
 ## Troubleshooting
 
 ### "No Azure subscriptions found"
 
-Run `az login` to authenticate with Azure CLI.
+```bash
+az login
+```
 
 ### "Failed to create resource group"
 
-Ensure your Azure account has permissions to create resource groups and storage accounts.
+Ensure your Azure account has permissions to create:
+- Resource groups
+- Storage accounts (Standard_LRS)
 
 ### Cleanup Failed
 
-If storage accounts weren't deleted, check the `cleanup_required` field in the response for the resource group name and account names. You can manually delete them:
+Check the response for `infrastructure.action_message`. Manual cleanup:
 
 ```bash
-az group delete --name latency-test-mcp-20250119143052 --yes
+az group delete --name latency-test-mcp-YYYYMMDDHHMMSS --yes
 ```
 
-### Slow Performance
+### Pricing Script Returns No Data
+
+- Verify the SKU name is correct (use `Standard_` prefix)
+- Check if the SKU is available in Azure (newer SKUs may have limited regions)
+
+### Slow Latency Tests
 
 - Reduce `request_count` to 3-5 for faster tests
 - Test fewer regions at once
 - Check your network connection
 
-## Development
-
-### Project Structure
-
-```
-azure-latency-mcp/
-├── src/
-│   └── azure_latency_mcp/
-│       ├── __init__.py        # Package exports
-│       ├── server.py          # MCP server and tools
-│       ├── latency_tester.py  # Core testing logic
-│       └── models.py          # Data models
-├── pyproject.toml             # Package configuration
-└── README.md                  # This file
-```
-
-### Running Tests
-
-```bash
-# Install dev dependencies
-uv pip install -e ".[dev]"
-
-# Run tests
-pytest
-```
-
-### Building
-
-```bash
-uv build
-```
-
-## License
-
-MIT
-
 ## Contributing
 
 Contributions welcome! Please open an issue or submit a pull request.
+
+## License
+
+MIT License - Copyright (c) 2026 Emre Guclu
+
+See [LICENSE](LICENSE) for details.
