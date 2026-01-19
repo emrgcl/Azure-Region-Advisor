@@ -37,7 +37,8 @@ When used together with an AI assistant, these tools provide comprehensive regio
 
 - **Python 3.10+**
 - **Azure CLI** - For authentication
-- **VS Code with GitHub Copilot** - For the integrated experience
+- **VS Code Insider with GitHub Copilot** - For the integrated experience [Download here](https://code.visualstudio.com/insiders).
+  > IMPORTANT NOTE: Please use only VS Code Insider as of January 2026 as the Agent Skills is only supported on Insiders edition as of Jan 2026.
 - **uv** (recommended) or pip - For package management
 
 ### Quick Start
